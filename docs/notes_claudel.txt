@@ -1,0 +1,129 @@
+NOTES claudel — feuille de route : score de « densité phonétique » par poème
+============================================================================
+
+Objectif : claudel consomme les caractéristiques MESURABLES produites par le
+gem scansion (syllabes IPA, groupes rythmiques, accents de phrase ˈ et de
+mot ˌ, césure, signature rythmique) et calcule un SCORE GLOBAL PAR POÈME de
+« densité phonétique » (le JUGEMENT, par-dessus les caractéristiques).
+La pondération exacte des critères reste un TRAVAIL EN COURS ; ce document
+liste ce qu'on regarde et les décisions prises au fil de l'eau.
+
+0. DONNÉES D'ENTRÉE (fournies par scansion)
+-------------------------------------------
+Par vers : Scansion::Accents.analyze_line / analyze_lines(mode:) -> Analysis
+  - syllables    : syllabes IPA (Array<String>), ex. ["la","syb","stɑ̃s",…]
+  - tokens       : mots avec plage d'indices de syllabes (Token#debut..#fin)
+  - groups       : groupes rythmiques ; Group#accent = indice de la
+                   dernière syllabe du groupe (accent de phrase ˈ)
+  - accents      : indices des fins de groupes rythmiques (ˈ)
+  - word_accents : indices des syllabes portant un accent de mot (ˌ)
+  - césure       : Accents.caesura_index(n) (alexandrin -> 5, octosyllabe
+                   -> 3), surtout en mode :classique
+  - Rythme.signature(analysis) : tailles des groupes en syllabes [7,2,1,2]
+  - Rythme.score(sig)           : score de régularité de la signature
+Un poème = Array<Analysis> (Accents.analyze_lines(lines, mode:)).
+Entrée haut niveau côté claudel : Claudel.analyze(lines, mode:).
+
+1. UNITÉ DE RÉPÉTITION PHONÉTIQUE (défini AVANT les critères 1 et 2)
+---------------------------------------------------------------------
+Une « unité » est une séquence de phones susceptible de se répéter :
+  a) phone seul        -> allitération / assonance (ex. /ʁ/) ;
+  b) syllabe entière   -> ex. « ʃɛʁ » répété ;
+  c) séquence inversée -> syllabe renversée, ex. « ʁɛʃ » vs « ʃɛʁ ».
+     DÉCISION : toute syllabe de >= 2 phones inversée compte ; la valeur
+     croît avec la longueur : 2 phones < 3 phones < 4+ phones.
+DÉCISION phone : 1 phone = 1 phone même sur plusieurs codepoints (voyelle
+nasale « ɑ̃ » = ɑ + tilde combinant U+0303, affriquée « t͡ʃ ») — les marques
+combinantes (catégorie Unicode Mn) sont rattachées au caractère de base.
+Source : Analysis#syllables ; extraction : Claudel::Units.
+
+2. CRITÈRE 1 — RÉPÉTITION PHONÉTIQUE GÉNÉRALE (valeur NON liée à la position)
+-----------------------------------------------------------------------------
+  - types d'unités : phone, syllabe, séquence inversée — poids par type
+    configurables (point de départ : phone 0.0 POUR L'INSTANT, syllabe 1.5,
+    inversée = longueur en phones : 2, 3, 4+) ;
+  - DÉCISION décompte : k occurrences d'une unité = k−1 répétitions
+    (« ʁʁʁ » = 2 répétitions) ;
+  - DÉCISION proximité : pondération en distance ABSOLUE en phones,
+    indépendante des frontières de vers (la coupe de vers est prise en
+    compte ailleurs, critère 2). Point de départ :
+        proximité(d) = (d / (d + 2)) · e^(−d/40)
+    qui pénalise les répétitions TROP PROCHES (d = 1, gémination ≈ 0.32),
+    culmine vers d ≈ 9 phones, puis décroît (3 fois dans un vers pèse plus
+    que 3 fois dans un poème de 50 vers) ;
+  - DÉCISION perte de points : une répétition provenant du même mot ou d'un
+    mot dérivé ne compte presque pas (point de départ : ×0.1) — détection via
+    les tokens scansion (surface du mot, racine commune) ;
+  - DÉCISION mots fonctionnels (listes scansion MOTS_FONCTIONNELS + fragments
+    clitiques) : leurs SYLLABES (et inversées) sont ignorées ; leurs PHONES
+    ne comptent que si la paire est INTRA-vers (répétition au niveau du vers),
+    sinon ignorés. Flags : drop_function_word_syllables,
+    function_word_phones_intra_verse_only.
+
+3. CRITÈRE 2 — RÉPÉTITION PHONÉTIQUE POSITIONNELLE
+--------------------------------------------------
+  - DÉCISION unité min en position : une « rime » = au moins 2 phones ou
+    1 syllabe (un phone seul ne compte pas en fin de vers) ;
+  - DÉCISION mots fonctionnels : une position dont la syllabe est portée par
+    un mot fonctionnel est ignorée (une fin de vers en « le »/« de » ne rime
+    pas) — même flag drop_function_word_syllables que le critère 1 ;
+  - classes de position, poids (point de départ) :
+      fin de vers (rime finale)      1.0
+      césure (rime interne)          0.7
+      fin de groupe (ˈ et ˌ)         0.5
+  - DÉCISION césure en mode contemporain : vers de longueur PAIRE (en
+    syllabes) -> position de césure individuelle au milieu ; sinon ce sont
+    les fins de groupes rythmiques qui attrapent cette dimension.
+    (Mode classique : Accents.caesura_index.)
+
+4. CRITÈRE 3 — PATTERNS RYTHMIQUES (la répétition a une valeur en soi)
+----------------------------------------------------------------------
+  - par vers  : Rythme.signature + Rythme.score (régularité interne) ;
+  - par poème : récurrence des signatures entre vers (mètre dominant, nombre
+                de vers partageant la signature majoritaire, etc.).
+
+5. ARCHITECTURE EXTENSIBLE ET NORMALISATION
+------------------------------------------
+  - Chaque critère = un objet : .name, .weight (configurable), #raw_score(poem)
+    -> score brut, normalisé ensuite (ex. en [0,1]) ;
+  - Registre Claudel::Criteria + configuration (hash/YAML) : ajouter un
+    critère ou changer les poids SANS toucher au code ;
+  - Score global du poème = combinaison pondérée des critères normalisés ;
+  - Niveau intermédiaire : score par vers, agrégé au niveau poème ;
+  - DÉCISION normalisation : densité PAR POÈME, divisée par la longueur
+    totale du poème EN PHONÈMES (pour prendre en compte les lignes très
+    variables du contemporain).
+
+6. DÉCISIONS PRISES — récapitulatif
+-----------------------------------
+  - séquences inversées : >= 2 phones (syllabe de 2 phones incluse),
+    valeur croissante 2 < 3 < 4+ phones ;
+  - critère 1 : poids phone à 0 pour l'instant (seules syllabes/inversées
+    comptent) ; k−1 répétitions, distance absolue en phones (hors vers),
+    proximité(d) = (d/(d+2))·e^(−d/40) au départ, pénalité si trop proche,
+    pénalité forte (×0.1) pour même mot / mot dérivé, mots fonctionnels :
+    syllabes ignorées, phones seulement en paire intra-vers ;
+  - critère 2 : rime portée par un mot fonctionnel ignorée (même flag) ;
+  - normalisation : par poème, longueur totale en phones ;
+  - critère 2 : rime = >= 2 phones ou 1 syllabe ; poids 1.0 (fin de vers) /
+    0.7 (césure) / 0.5 (fin de groupe) au départ ;
+  - césure en contemporain : vers de longueur paire -> césure au milieu,
+    sinon ce sont les fins de groupes rythmiques qui jouent ;
+  - phones multi-codepoints (voyelles nasales, affriquées) = 1 phone.
+
+7. ÉTAT D'IMPLÉMENTATION
+------------------------
+  - Claudel::Phonemes  : syllabes IPA -> phones (lib/claudel/phonemes.rb) ;
+  - Claudel::Units     : unités de répétition + positions absolues en phones
+                         (lib/claudel/unites.rb) ;
+  - Claudel::Criteria  : registre (lib/claudel/criteria.rb) + critères
+                         RepetitionGenerale, RepetitionPositionnelle,
+                         PatternsRythmiques (lib/claudel/criteria/*.rb) ;
+  - Claudel.score      : score global par poème, densités normalisées par le
+                         nombre total de phones, combinaison pondérée
+                         (lib/claudel/score.rb) — poids via config[:weights] ;
+  - CLI                : claudel [--mode auto|classique|contemporain] [--repetitions]
+                         <fichier...> (un vers par ligne), rapport par critère ;
+                         --repetitions détaille chaque répétition (positions,
+                         distance, proximité, pénalité de mot, contribution).
+                         Chaque critère de répétition expose aussi .explain(poem).
