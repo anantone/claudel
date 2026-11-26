@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 #
-# claudel.rb — point d'entrée du gem claudel : évaluation SUBJECTIVE
-# (score de « densité phonétique » par poème) au-dessus des
-# caractéristiques mesurables du gem scansion.
+# claudel.rb — point d'entrée du gem claudel : quantification de certaines
+# caractéristiques mesurables du gem scansion, pour modéliser numériquement
+# des notions comme la « densité phonétique » d'un poème.
 #
 # Organisation sous lib/claudel/ :
 #   version.rb    Claudel::VERSION
@@ -32,7 +32,7 @@ require_relative 'claudel/criteria/patterns_rythmiques'
 require_relative 'claudel/score'
 require_relative 'claudel/cli'
 
-# Évaluation subjective des caractéristiques scansion (voir docs/notes_claudel.txt).
+# Quantification des caractéristiques scansion — voir docs/notes_claudel.txt.
 module Claudel
   class << self
     # Analyse un poème (liste de vers) via scansion.

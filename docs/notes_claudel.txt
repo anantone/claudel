@@ -1,12 +1,13 @@
 NOTES claudel — feuille de route : score de « densité phonétique » par poème
 ============================================================================
 
-Objectif : claudel consomme les caractéristiques MESURABLES produites par le
-gem scansion (syllabes IPA, groupes rythmiques, accents de phrase ˈ et de
-mot ˌ, césure, signature rythmique) et calcule un SCORE GLOBAL PAR POÈME de
-« densité phonétique » (le JUGEMENT, par-dessus les caractéristiques).
-La pondération exacte des critères reste un TRAVAIL EN COURS ; ce document
-liste ce qu'on regarde et les décisions prises au fil de l'eau.
+Objectif : quantifier certaines des caractéristiques MESURABLES produites par
+le gem scansion (syllabes IPA, groupes rythmiques, accents de phrase ˈ et de
+mot ˌ, césure, signature rythmique) pour MODÉLISER NUMÉRIQUEMENT des notions
+comme la « densité phonétique » d'un poème (pour l'instant ; d'autres notions
+pourront suivre). La pondération exacte des critères reste un TRAVAIL EN
+COURS ; ce document liste ce qu'on regarde et les décisions prises au fil
+de l'eau.
 
 0. DONNÉES D'ENTRÉE (fournies par scansion)
 -------------------------------------------

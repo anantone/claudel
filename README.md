@@ -1,19 +1,21 @@
 # claudel
 
-**claudel** est la couche d'évaluation *subjective* au-dessus du gem
-[**scansion**](https://rubygems.org/gems/scansion).
+**claudel** tente de **quantifier certaines des données produites par le gem
+[**scansion**](https://rubygems.org/gems/scansion)**, afin de **modéliser
+numériquement** des notions comme la **densité phonétique** d'un poème
+(pour l'instant — d'autres notions pourront suivre).
 
 scansion produit les **caractéristiques mesurables** du vers : syllabes IPA et
 compte, groupes rythmiques, accents de phrase (ˈ) et de mot (ˌ), césure,
 signature rythmique (`Scansion::Rythme` : tailles des groupes, score de
 régularité) — et applique le **tirage accentuel 2.6** en vers contemporain.
 
-claudel ajoute le **jugement** : à partir de ces caractéristiques, il calcule
-un **score global de « densité phonétique » par poème**, combinaison pondérée
-de plusieurs critères (répétitions phonétiques générales, répétitions
-positionnelles, patterns rythmiques). La pondération exacte est un **travail
-en cours** — voir `docs/notes_claudel.txt` pour la feuille de route et les
-décisions prises.
+À partir de ces caractéristiques, claudel calcule un **score global de
+« densité phonétique » par poème**, combinaison pondérée de plusieurs
+critères (répétitions phonétiques générales, répétitions positionnelles,
+patterns rythmiques). La pondération exacte est un **travail en cours** —
+voir `docs/notes_claudel.txt` pour la feuille de route et les décisions
+prises.
 
 ## Prérequis et installation
 
@@ -144,16 +146,6 @@ Voir `docs/notes_claudel.txt` : définitions des unités de répétition, foncti
 de proximité, pondérations des positions et des poids — **à affiner** sur de
 vrais poèmes. La rime « classique » (fin de vers seulement) et d'autres
 critères pourront s'ajouter via le registre `Claudel::Criteria`.
-
-## Développement
-
-```sh
-bundle exec rspec     # tests
-bundle exec rake      # idem (tâche par défaut)
-rubocop               # style
-```
-
-Documentation et commentaires en français.
 
 ## Licence
 

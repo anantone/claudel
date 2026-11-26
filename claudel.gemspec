@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name          = 'claudel'
   spec.version       = Claudel::VERSION
   spec.authors       = ['anantone']
-  spec.summary       = 'Score de densité phonétique par poème, au-dessus de scansion'
+  spec.summary       = 'Modélisation numérique de la densité phonétique par poème, à partir de scansion'
   spec.description   = 'claudel consomme les caractéristiques mesurables du gem ' \
                        'scansion (syllabes IPA, groupes rythmiques, accents, signature ' \
                        'rythmique) et calcule un score global de densité phonétique ' \
