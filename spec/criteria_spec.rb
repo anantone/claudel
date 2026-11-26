@@ -19,13 +19,18 @@ RSpec.describe Claudel::Criteria::RepetitionGenerale do
     (distance / (distance + 2.0)) * Math.exp(-distance / 40.0)
   end
 
-  # poids explicites avec phones actifs (le défaut met phone à 0)
-  let(:weights_phones) { { unit_weights: { phone: 1.0, syllabe: 1.5, inversee: :length } } }
+  # poids explicites avec toutes les classes de phones actives
+  let(:weights_phones) do
+    { unit_weights: { phone: 1.0, voyelle: 1.0, consonne: 1.0, syllabe: 1.5, inversee: :length } }
+  end
 
-  it 'met le poids des phones à 0 par défaut (expérimental)' do
-    expect(described_class::DEFAULTS[:unit_weights][:phone]).to eq(0.0)
-    expect(described_class.raw_score(poem)).to eq(0.0) # seules les syllabes/inversées comptent
-    expect(described_class.raw_score(poem, **weights_phones)).to be > 0.0
+  it 'distingue assonance (voyelle) et allitération (consonne) au niveau phone' do
+    weights = described_class::DEFAULTS[:unit_weights]
+    expect(weights[:consonne]).to eq(0.0) # allitération : 0 par défaut
+    expect(weights[:voyelle]).to be > weights[:consonne] # assonance valorisée
+    # poème ʁɛʃ/ʃɛʁ : seules les voyelles comptent par défaut (ɛ en [1,4], d=3)
+    expect(described_class.raw_score(poem)).to be_within(0.001).of(weights[:voyelle] * prox(3))
+    expect(described_class.raw_score(poem, **weights_phones)).to be > described_class.raw_score(poem)
   end
 
   it 'compte k−1 répétitions pondérées par la distance absolue en phones' do
@@ -87,10 +92,20 @@ RSpec.describe Claudel::Criteria::RepetitionGenerale do
   end
 
   it 'valorise une inversée selon sa longueur en phones' do
-    weights = { phone: 1.0, syllabe: 1.5, inversee: :length }
+    weights = { phone: 1.0, voyelle: 1.0, consonne: 1.0, syllabe: 1.5, inversee: :length }
     expect(described_class.unit_value(:inversee, 'ʃɛʁ', weights)).to eq(3.0)
     expect(described_class.unit_value(:phone, 'ʁ', weights)).to eq(1.0)
     expect(described_class.unit_value(:syllabe, 'ʃɛʁ', weights)).to eq(1.5)
+  end
+
+  it 'classe un phone en voyelle (assonance) ou consonne (allitération), avec repli :phone' do
+    defaults = described_class::DEFAULTS[:unit_weights]
+    expect(described_class.unit_value(:phone, 'ɛ', defaults)).to eq(0.8) # voyelle
+    expect(described_class.unit_value(:phone, 'ʁ', defaults)).to eq(0.0) # consonne
+    repli = { phone: 0.5, syllabe: 1.5, inversee: :length } # sans classes -> repli :phone
+    expect(described_class.unit_value(:phone, 'ɛ', repli)).to eq(0.5)
+    expect(described_class.phone_class("ɑ\u0303")).to eq(:voyelle) # nasale = voyelle
+    expect(described_class.phone_class('j')).to eq(:consonne) # glide = consonne
   end
 end
 

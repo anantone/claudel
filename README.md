@@ -8,7 +8,7 @@ numériquement** des notions comme la **densité phonétique** d'un poème
 scansion produit les **caractéristiques mesurables** du vers : syllabes IPA et
 compte, groupes rythmiques, accents de phrase (ˈ) et de mot (ˌ), césure,
 signature rythmique (`Scansion::Rythme` : tailles des groupes, score de
-régularité) — et applique le **tirage accentuel 2.6** en vers contemporain.
+régularité) — et applique le **tirage accentuel** en vers contemporain.
 
 À partir de ces caractéristiques, claudel calcule un **score global de
 « densité phonétique » par poème**, combinaison pondérée de plusieurs
@@ -112,7 +112,7 @@ score de densité phonétique : 0.05014
 
 | Critère | Id | Idée | Poids par défaut |
 |---|---|---|---|
-| Répétition générale | `:repetition_generale` | syllabes / syllabes inversées (≥ 2 phones) répétés — **poids des phones à 0 pour l'instant** ; k occurrences = k−1 répétitions, pondérées par la distance absolue en phones `proximité(d) = (d/(d+2))·e^(−d/40)` ; pénalité ×0.1 si même mot ou dérivé ; **mots fonctionnels** : syllabes ignorées, phones comptés seulement en paire intra-vers | 1.0 |
+| Répétition générale | `:repetition_generale` | syllabes / syllabes inversées (≥ 2 phones) répétés ; au niveau phone, **assonance (voyelle, poids 0.8) distinguée de l'allitération (consonne, poids 0.0)** ; k occurrences = k−1 répétitions, pondérées par la distance absolue en phones `proximité(d) = (d/(d+2))·e^(−d/40)` ; pénalité ×0.1 si même mot ou dérivé ; **mots fonctionnels** : syllabes ignorées, phones comptés seulement en paire intra-vers | 1.0 |
 | Répétition positionnelle | `:repetition_positionnelle` | rimes (≥ 2 phones ou 1 syllabe) en fin de vers (poids 1.0), césure (0.7 — vers pair : milieu), fins de groupe ˈ/ˌ (0.5) ; rime portée par un mot fonctionnel ignorée | 1.0 |
 | Patterns rythmiques | `:patterns_rythmiques` | score de régularité `Rythme.score` par vers + récurrence de la signature dominante entre vers | 1.0 |
 

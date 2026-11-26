@@ -36,5 +36,12 @@ module Claudel
     def of_syllables(syls)
       syls.flat_map { |s| of_syllable(s) }
     end
+
+    # @param phone [String] un phone (éventuellement multi-codepoints, ex. « ɑ̃ »)
+    # @return [Boolean] voyelle (orales + nasales via le caractère de base ;
+    #   les glides j ɥ w sont des consonnes) — classe de Scansion::PHONEME_VOYELLE
+    def vowel?(phone)
+      Scansion::PHONEME_VOYELLE.match?(phone)
+    end
   end
 end

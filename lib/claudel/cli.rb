@@ -103,10 +103,17 @@ module Claudel
     end
 
     def general_block(rep)
-      head = format('  [%<type>s %<form>s] valeur %<value>.1f, %<count>d occ., total %<total>.3f',
-                    type: rep.type, form: rep.form, value: rep.value,
+      head = format('  [%<label>s %<form>s] valeur %<value>.1f, %<count>d occ., total %<total>.3f',
+                    label: unit_label(rep), form: rep.form, value: rep.value,
                     count: rep.occurrences.size, total: rep.total)
       ([head] + rep.pairs.map { |pair| general_pair(pair) }).join("\n")
+    end
+
+    # « voyelle »/« consonne » pour un phone, sinon le type d'unité.
+    def unit_label(rep)
+      return rep.type.to_s unless rep.type == :phone
+
+      Claudel::Phonemes.vowel?(rep.form) ? 'voyelle' : 'consonne'
     end
 
     def general_pair(pair)

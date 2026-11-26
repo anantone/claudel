@@ -4,6 +4,10 @@
 
 - Poids des phones à 0 par défaut dans `repetition_generale` (expérimental :
   seules les syllabes et inversées comptent ; réglable via `unit_weights`).
+- Distinction **assonance / allitération** au niveau phone : `Phonemes.vowel?`
+  classe chaque phone (voyelle, nasales incluses ; glides = consonnes) ;
+  `unit_weights` accepte `voyelle:` (0.8) et `consonne:` (0.0), avec `:phone`
+  comme repli. Le rapport `--repetitions` étiquette `[voyelle …]`/`[consonne …]`.
 
 - Échafaudage du gem (gemspec, Gemfile, Rakefile, `.rspec`, `bin/claudel`).
 - `Claudel::Phonemes` : découpage des syllabes IPA en phones (1 phone = 1

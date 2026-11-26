@@ -9,6 +9,11 @@ Metrics/BlockLength:
   Exclude:
     - 'spec/**/*'
 
+# le module CLI concentre l'affichage du rapport
+Metrics/ModuleLength:
+  Exclude:
+    - 'lib/claudel/cli.rb'
+
 # structures et helpers style scansion (Aligner, etc.)
 Metrics/ParameterLists:
   Max: 8

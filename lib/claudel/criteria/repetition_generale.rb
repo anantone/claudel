@@ -17,9 +17,11 @@ module Claudel
 
       # Points de départ (notes §2/§6) — surchargeables via config.
       DEFAULTS = {
-        # phone à 0.0 POUR L'INSTANT (expérimental) : seules les syllabes et
-        # inversées comptent par défaut ; inversée = longueur en phones.
-        unit_weights: { phone: 0.0, syllabe: 1.5, inversee: :length },
+        # Distinction assonance/allitération (littérature : l'assonance est plus
+        # proche de la rime, l'allitération consonantique moins automatique) :
+        # voyelle > consonne ; :phone sert de repli si une classe manque.
+        # Inversée = longueur en phones.
+        unit_weights: { phone: 0.0, voyelle: 0.8, consonne: 0.5, syllabe: 1.5, inversee: :length },
         proximity_a: 2.0, # proximité(d) = (d/(d+a)) · e^(−d/lambda)
         proximity_lambda: 40.0,
         word_penalty: 0.1, # même mot ou dérivé -> ×0.1
@@ -116,9 +118,17 @@ module Claudel
         end
 
         # Valeur d'un type d'unité ; :length -> longueur en phones (inversée).
+        # Un phone est valorisé selon sa classe : :voyelle (assonance) ou
+        # :consonne (allitération), avec :phone comme repli.
         def unit_value(type, form, weights)
-          weight = weights[type]
+          key = type == :phone ? phone_class(form) : type
+          weight = weights.key?(key) ? weights[key] : weights[:phone]
           weight == :length ? Phonemes.of_syllable(form).size.to_f : weight.to_f
+        end
+
+        # Classe d'un phone : :voyelle ou :consonne.
+        def phone_class(phone)
+          Phonemes.vowel?(phone) ? :voyelle : :consonne
         end
 
         # 1.0, ou word_penalty si les deux occurrences viennent du même mot

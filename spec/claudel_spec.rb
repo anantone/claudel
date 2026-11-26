@@ -27,6 +27,13 @@ RSpec.describe Claudel::Phonemes do
   it 'aplatit une liste de syllabes' do
     expect(described_class.of_syllables(%w[la bɛl])).to eq(%w[l a b ɛ l])
   end
+
+  it 'classe les phones : voyelle (orale/nasale) vs consonne (glides inclus)' do
+    expect(described_class.vowel?('ɛ')).to be(true)
+    expect(described_class.vowel?("ɑ\u0303")).to be(true) # voyelle nasale
+    expect(described_class.vowel?('ʁ')).to be(false)
+    expect(described_class.vowel?('j')).to be(false) # glide = consonne
+  end
 end
 
 RSpec.describe Claudel::Units do

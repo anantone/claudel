@@ -41,8 +41,10 @@ Source : Analysis#syllables ; extraction : Claudel::Units.
 2. CRITÈRE 1 — RÉPÉTITION PHONÉTIQUE GÉNÉRALE (valeur NON liée à la position)
 -----------------------------------------------------------------------------
   - types d'unités : phone, syllabe, séquence inversée — poids par type
-    configurables (point de départ : phone 0.0 POUR L'INSTANT, syllabe 1.5,
-    inversée = longueur en phones : 2, 3, 4+) ;
+    configurables. DÉCISION : les phones sont classés voyelle (assonance) /
+    consonne (allitération, glides inclus) — point de départ : voyelle 0.8,
+    consonne 0.0, :phone = repli ; syllabe 1.5 ; inversée = longueur en
+    phones (2, 3, 4+) ;
   - DÉCISION décompte : k occurrences d'une unité = k−1 répétitions
     (« ʁʁʁ » = 2 répétitions) ;
   - DÉCISION proximité : pondération en distance ABSOLUE en phones,
@@ -99,8 +101,10 @@ Source : Analysis#syllables ; extraction : Claudel::Units.
 -----------------------------------
   - séquences inversées : >= 2 phones (syllabe de 2 phones incluse),
     valeur croissante 2 < 3 < 4+ phones ;
-  - critère 1 : poids phone à 0 pour l'instant (seules syllabes/inversées
-    comptent) ; k−1 répétitions, distance absolue en phones (hors vers),
+  - critère 1 : distinction assonance (voyelle, 0.8) / allitération (consonne,
+    0.0) au niveau phone — la littérature (Menninghaus et al.) indique que la
+    rime est perçue le plus tôt, l'allitération plus tardivement et plus
+    coûteusement ; k−1 répétitions, distance absolue en phones (hors vers),
     proximité(d) = (d/(d+2))·e^(−d/40) au départ, pénalité si trop proche,
     pénalité forte (×0.1) pour même mot / mot dérivé, mots fonctionnels :
     syllabes ignorées, phones seulement en paire intra-vers ;
