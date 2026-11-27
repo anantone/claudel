@@ -24,6 +24,10 @@ RSpec.describe Claudel::Phonemes do
     expect(described_class.of_syllable(syl)).to eq(%w[s t ɑ̃ s])
   end
 
+  it 'attache une barre de liaison (U+0361) au caractère précédent (affriquée t͡ʃ)' do
+    expect(described_class.of_syllable("t\u0361ʃ")).to eq(%w[t͡ ʃ])
+  end
+
   it 'aplatit une liste de syllabes' do
     expect(described_class.of_syllables(%w[la bɛl])).to eq(%w[l a b ɛ l])
   end

@@ -18,7 +18,7 @@ module Claudel
       }.freeze
 
       class << self
-        def name = NAME
+        def key = NAME
 
         def default_weight = 1.0
 
@@ -26,7 +26,7 @@ module Claudel
         # @param config [Hash] surcharges de DEFAULTS
         # @return [Float] score brut
         def raw_score(poem, config = {})
-          cfg = DEFAULTS.merge(config)
+          cfg = Criteria.merge_config(DEFAULTS, config)
           signatures = poem.map { |analysis| Scansion::Rythme.signature(analysis) }
           (cfg[:verse_bonus] * verse_scores(signatures)) + (cfg[:recurrence_bonus] * recurrence(signatures))
         end

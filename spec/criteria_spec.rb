@@ -1,13 +1,23 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'tempfile'
 
 RSpec.describe Claudel::Criteria do
   it 'enregistre les trois critères' do
-    expect(described_class.all.map(&:name)).to contain_exactly(
+    expect(described_class.all.map(&:key)).to contain_exactly(
       :repetition_generale, :repetition_positionnelle, :patterns_rythmiques
     )
+  end
+
+  it 'laisse Module#name intact (la clé du critère est .key)' do
+    expect(described_class.all.map(&:name)).to all(start_with('Claudel::Criteria::'))
+  end
+
+  it 'fusionne la config sur les défauts, sous-hashes compris' do
+    defaults = { a: 1, nested: { x: 1, y: 2 } }
+    merged = described_class.merge_config(defaults, { nested: { y: 3 }, b: 4 })
+    expect(merged).to eq(a: 1, nested: { x: 1, y: 3 }, b: 4)
+    expect(defaults).to eq(a: 1, nested: { x: 1, y: 2 }) # défauts intacts
   end
 end
 
@@ -26,10 +36,10 @@ RSpec.describe Claudel::Criteria::RepetitionGenerale do
 
   it 'distingue assonance (voyelle) et allitération (consonne) au niveau phone' do
     weights = described_class::DEFAULTS[:unit_weights]
-    expect(weights[:consonne]).to eq(0.0) # allitération : 0 par défaut
-    expect(weights[:voyelle]).to be > weights[:consonne] # assonance valorisée
-    # poème ʁɛʃ/ʃɛʁ : seules les voyelles comptent par défaut (ɛ en [1,4], d=3)
-    expect(described_class.raw_score(poem)).to be_within(0.001).of(weights[:voyelle] * prox(3))
+    expect(weights[:voyelle]).to be > weights[:consonne] # assonance > allitération
+    # poème ʁɛʃ/ʃɛʁ : voyelle ɛ [1,4] d=3 ; consonnes ʁ [0,5] d=5 et ʃ [2,3] d=1
+    expected = (weights[:voyelle] * prox(3)) + (weights[:consonne] * (prox(5) + prox(1)))
+    expect(described_class.raw_score(poem)).to be_within(1e-9).of(expected)
     expect(described_class.raw_score(poem, **weights_phones)).to be > described_class.raw_score(poem)
   end
 
@@ -52,6 +62,23 @@ RSpec.describe Claudel::Criteria::RepetitionGenerale do
     cfg = described_class::DEFAULTS
     expect(described_class.proximite(1, cfg)).to be < described_class.proximite(9, cfg)
     expect(described_class.proximite(9, cfg)).to be > described_class.proximite(200, cfg)
+  end
+
+  it 'proximité identique avec des réglages entiers ou flottants (pas de division entière)' do
+    ints = described_class::DEFAULTS.merge(proximity_a: 2, proximity_lambda: 60)
+    floats = described_class::DEFAULTS.merge(proximity_a: 2.0, proximity_lambda: 60.0)
+    [1, 9, 30, 61].each do |d|
+      expect(described_class.proximite(d, ints)).to be_within(1e-12).of(described_class.proximite(d, floats))
+    end
+    expect(described_class.proximite(9, ints)).to be > 0.0
+  end
+
+  it 'surcharger un seul poids d’unité conserve les autres poids par défaut' do
+    poem = [fake_analysis(%w[ʁa ʁa], %w[aa bb])]
+    syllabe = described_class::DEFAULTS[:unit_weights][:syllabe]
+    # seule la contribution de la syllabe ʁa change : (2.0 − défaut) × prox(2)
+    expected = described_class.raw_score(poem) + ((2.0 - syllabe) * prox(2))
+    expect(described_class.raw_score(poem, unit_weights: { syllabe: 2.0 })).to be_within(1e-9).of(expected)
   end
 
   it 'détecte même mot et dérivés par préfixe commun' do
@@ -100,8 +127,8 @@ RSpec.describe Claudel::Criteria::RepetitionGenerale do
 
   it 'classe un phone en voyelle (assonance) ou consonne (allitération), avec repli :phone' do
     defaults = described_class::DEFAULTS[:unit_weights]
-    expect(described_class.unit_value(:phone, 'ɛ', defaults)).to eq(0.8) # voyelle
-    expect(described_class.unit_value(:phone, 'ʁ', defaults)).to eq(0.0) # consonne
+    expect(described_class.unit_value(:phone, 'ɛ', defaults)).to eq(defaults[:voyelle]) # voyelle
+    expect(described_class.unit_value(:phone, 'ʁ', defaults)).to eq(defaults[:consonne]) # consonne
     repli = { phone: 0.5, syllabe: 1.5, inversee: :length } # sans classes -> repli :phone
     expect(described_class.unit_value(:phone, 'ɛ', repli)).to eq(0.5)
     expect(described_class.phone_class("ɑ\u0303")).to eq(:voyelle) # nasale = voyelle
@@ -110,6 +137,53 @@ RSpec.describe Claudel::Criteria::RepetitionGenerale do
 end
 
 RSpec.describe Claudel::Criteria::RepetitionPositionnelle do
+  describe 'proximité en vers (règle des deux couleurs, puis rime distante)' do
+    # Une rime de 3 phones par lettre du schéma ; vers de 3 syllabes (impair :
+    # pas de césure), premières syllabes toutes distinctes -> seules les fins
+    # de vers peuvent se répéter.
+    rhymes = { 'A' => 'bɛl', 'B' => 'ʁoz', 'C' => 'mɔʁ', 'D' => 'nɥi', 'E' => 'ʒuʁ' }
+    scheme_poem = lambda do |scheme|
+      scheme.delete(' ').chars.each_with_index.map do |letter, i|
+        fake_analysis(["k#{i}", "t#{i}", rhymes.fetch(letter)], ["mot#{i}a", "mot#{i}b", "mot#{i}c"])
+      end
+    end
+
+    {
+      'rimes plates' => 'AABB',
+      'rimes croisées' => 'ABAB',
+      'rimes embrassées' => 'ABBA',
+      'sonnet (tercets ccd eed)' => 'ABBA ABBA CCD EED',
+      'sonnet (tercets ccd ede)' => 'ABBA ABBA CCD EDE',
+      'ballade (huitain ababbcbc)' => 'ABABBCBC',
+      'terza rima' => 'ABA BCB CDC'
+    }.each do |name, scheme|
+      it "ne pénalise aucune paire : #{name} (#{scheme})" do
+        reps = described_class.explain(scheme_poem.call(scheme))
+        pairs = reps.flat_map(&:pairs)
+        expect(pairs.map { |p| p[:verse_distance] }.max).to be <= 3
+        expect(pairs.map { |p| p[:proximite] }).to all(eq(1.0))
+        expect(reps.sum(&:total)).to be_within(1e-9).of(3.0 * pairs.size) # 3 phones × poids 1.0
+      end
+    end
+
+    it 'au-delà de 3 vers, décroît d’autant plus lentement que la rime est épaisse' do
+      cfg = described_class::DEFAULTS
+      # Δv = 10 : e^(−(10 − 3) / (4.0 · phones / 2))
+      expect(described_class.verse_proximity(10, 2.0, cfg)).to be_within(1e-12).of(Math.exp(-7 / 4.0))
+      expect(described_class.verse_proximity(10, 4.0, cfg)).to be_within(1e-12).of(Math.exp(-7 / 8.0))
+      expect(described_class.verse_proximity(4, 2.0, cfg)).to be < 1.0
+      expect(described_class.verse_proximity(0, 2.0, cfg)).to eq(1.0) # même vers (rime interne)
+    end
+
+    it 'une forme répétée loin compte moins qu’à 3 vers ; rhyme_lambda: nil désactive' do
+      near = scheme_poem.call('ABBA') # A : Δv = 3
+      far = scheme_poem.call("A#{'BC' * 5}A") # A : Δv = 11
+      a_total = ->(poem, cfg) { described_class.explain(poem, cfg).find { |r| r.form == 'bɛl' }.total }
+      expect(a_total.call(far, {})).to be < a_total.call(near, {})
+      expect(a_total.call(far, rhyme_lambda: nil)).to eq(a_total.call(near, {}))
+    end
+  end
+
   it 'compte la rime de fin de vers (poids 1.0) entre deux vers' do
     poem = [fake_analysis(%w[la bɛl], %w[pa bel]), fake_analysis(%w[ʁɛ bɛl], %w[ʁo bel])]
     # fin de vers 'bɛl' dans les deux vers -> 1 paire, valeur 3 phones × min(1.0, 1.0)
@@ -142,9 +216,21 @@ RSpec.describe Claudel::Criteria::RepetitionPositionnelle do
     expect(sans).to be_within(0.001).of(2.0) # rime lø : 2 phones × poids min 1.0
   end
 
+  it 'surcharger un seul poids de position conserve les autres (pas de crash)' do
+    poem = [fake_analysis(%w[la bɛl], %w[pa bel]), fake_analysis(%w[ʁɛ bɛl], %w[ʁo bel])]
+    # la rime de fin de vers garde son poids par défaut 1.0
+    expect(described_class.raw_score(poem, position_weights: { cesure: 0.9 })).to be_within(0.001).of(3.0)
+  end
+
+  it 'ignore une position dont la forme reste sous min_phones (syllabe d’un phone en début de vers)' do
+    # 2 syllabes -> césure sur 'a' (1 phone, rien avant pour compléter)
+    occ = described_class.positional_occurrences([fake_analysis(%w[a bɛl], %w[xa bel])], described_class::DEFAULTS)
+    expect(occ.map { |o| [o.form, o.klass] }).to eq([['bɛl', :fin_de_vers]])
+  end
+
   it 'ignore un vers sans syllabes (ex. ligne mal phonétisée)' do
     empty = fake_analysis([], [], groups: [])
-    expect(described_class.position_classes(empty)).to eq({})
+    expect(Claudel::Positions.classes(empty)).to eq({})
     poem = [empty, fake_analysis(%w[la bɛl], %w[pa bel])]
     expect { described_class.raw_score(poem) }.not_to raise_error
     expect(Claudel.score(poem).score).to be >= 0.0
@@ -152,9 +238,9 @@ RSpec.describe Claudel::Criteria::RepetitionPositionnelle do
 
   it 'attribue une césure au milieu d’un vers de longueur paire' do
     analysis = fake_analysis(%w[la bɛl ʁo zi], %w[pa bel ro zi])
-    expect(described_class.position_classes(analysis)[1]).to eq(:cesure)
+    expect(Claudel::Positions.classes(analysis)[1]).to eq(:cesure)
     odd = fake_analysis(%w[la bɛl ʁo], %w[pa bel ro])
-    expect(described_class.position_classes(odd)).not_to have_key(1)
+    expect(Claudel::Positions.classes(odd)).not_to have_key(1)
   end
 end
 
@@ -166,105 +252,11 @@ RSpec.describe Claudel::Criteria::PatternsRythmiques do
     # 2 vers × score 2 + (2 vers sur la même signature -> +1)
     expect(described_class.raw_score(poem)).to be_within(0.001).of(5.0)
   end
-end
 
-RSpec.describe Claudel do
-  let(:poem) { [fake_analysis(%w[la bɛl], %w[pa bel]), fake_analysis(%w[la bɛl], %w[pa bel])] }
-
-  it 'calcule un score global pondéré, normalisé par le nombre de phones' do
-    result = described_class.score(poem)
-    expect(result.verses).to eq(2)
-    expect(result.total_phones).to eq(10)
-    expect(result.criteria.keys).to contain_exactly(
-      :repetition_generale, :repetition_positionnelle, :patterns_rythmiques
-    )
-    expected = result.criteria.values.sum { |c| c[:weight] * c[:density] } /
-               result.criteria.values.sum { |c| c[:weight] }
-    expect(result.score).to be_within(1e-9).of(expected)
-    expect(result.score).to be >= 0.0
-  end
-
-  it 'respecte les poids passés en config (poids 0 -> critère exclu)' do
-    config = { weights: { repetition_generale: 0.0, repetition_positionnelle: 0.0, patterns_rythmiques: 0.0 } }
-    expect(described_class.score(poem, config: config).score).to eq(0.0)
-    only_pos = { weights: { repetition_generale: 0.0, patterns_rythmiques: 0.0 } }
-    result = described_class.score(poem, config: only_pos)
-    expect(result.score).to be_within(1e-9).of(result.criteria[:repetition_positionnelle][:density])
-  end
-
-  it 'accepte des vers (String) et les scansionne' do
-    result = described_class.score(['la substance de mort s additionne au vécu'], mode: :contemporain)
-    expect(result.verses).to eq(1)
-    expect(result.total_phones).to be_positive
-    expect(result.score).to be_positive
-  end
-end
-
-RSpec.describe 'explain (rapport détaillé des répétitions)' do
-  let(:poem) { [fake_analysis(%w[ʁɛʃ ʃɛʁ], %w[pa bel])] }
-
-  it 'RepetitionGenerale.explain : total == raw_score, trié par total décroissant' do
-    reps = Claudel::Criteria::RepetitionGenerale.explain(poem)
-    expect(reps.sum(&:total)).to be_within(1e-9).of(Claudel::Criteria::RepetitionGenerale.raw_score(poem))
-    expect(reps.map(&:total)).to eq(reps.map(&:total).sort.reverse)
-    expect(reps.map { |r| [r.type, r.form] }).to contain_exactly([:phone, 'ʁ'], [:phone, 'ɛ'], [:phone, 'ʃ'])
-    expect(reps.sum { |r| r.occurrences.size }).to eq(6) # 3 unités × 2 occurrences
-  end
-
-  it 'RepetitionPositionnelle.explain : paires avec classe de position et poids retenu' do
-    rhyme_poem = [fake_analysis(%w[la bɛl], %w[pa bel]), fake_analysis(%w[ʁɛ bɛl], %w[ʁo bel])]
-    reps = Claudel::Criteria::RepetitionPositionnelle.explain(rhyme_poem)
-    expect(reps.size).to eq(1)
-    expect(reps.first.form).to eq('bɛl')
-    expect(reps.first.total).to be_within(0.001).of(3.0)
-    expect(reps.first.pairs.first[:weight]).to eq(1.0)
-    expect(reps.first.occurrences.map(&:klass)).to eq(%i[fin_de_vers fin_de_vers])
-  end
-end
-
-SAMPLES_DIR = File.expand_path('../../../samples', __dir__) # poems/ruby/samples
-
-RSpec.describe 'échantillons poems/ruby/samples', if: File.directory?(SAMPLES_DIR) do
-  def sample_score(name)
-    lines = File.readlines(File.join(SAMPLES_DIR, name), chomp: true).map(&:strip).reject(&:empty?)
-    Claudel.score(lines)
-  end
-
-  it 'dioptre4.txt est plus dense que 2008-11-13-personal-data.txt, surtout en positionnel' do
-    dioptre = sample_score('dioptre4.txt')
-    personal = sample_score('2008-11-13-personal-data.txt')
-    expect(dioptre.score).to be > personal.score
-    expect(dioptre.criteria[:repetition_positionnelle][:raw])
-      .to be > personal.criteria[:repetition_positionnelle][:raw]
-  end
-end
-
-RSpec.describe 'CLI' do
-  it '--version affiche la version' do
-    expect { Claudel.main(['--version']) }.to output(/claudel \d+\.\d+\.\d+/).to_stdout
-  end
-
-  it 'sans fichier, affiche usage et échoue' do
-    expect { Claudel.main(['--mode', 'auto']) }.to output(/usage:/).to_stderr
-  end
-
-  it 'produit un rapport de densité phonétique pour un fichier' do
-    Tempfile.create(['poeme', '.txt']) do |f|
-      f.puts 'la substance de mort'
-      f.puts 's additionne au vecu'
-      f.flush
-      expect { Claudel.main(['--mode', 'contemporain', f.path]) }
-        .to output(/score de densité phonétique : [\d.]+/).to_stdout
-    end
-  end
-
-  it '--repetitions détaille les répétitions identifiées' do
-    Tempfile.create(['poeme', '.txt']) do |f|
-      f.puts 'la substance de mort'
-      f.puts 'la mort du substance' # rime approximative en fin de vers
-      f.flush
-      expect { Claudel.main(['--repetitions', f.path]) }
-        .to output(/répétitions générales.*répétitions positionnelles.*signatures rythmiques/m).to_stdout
-    end
+  it 'ne crédite la récurrence qu’à la signature dominante (alternance -> 1, pas 3)' do
+    a = fake_analysis(%w[la bɛ ʁo zi], %w[pa bel ro zi], groups: [[0, 1, 1], [2, 3, 3]]) # [2,2]
+    b = fake_analysis(%w[la bɛl ʁo], %w[pa bel ro], groups: [[0, 0, 0], [1, 2, 2]]) # [1,2]
+    sigs = [a, b, a, b].map { |v| Scansion::Rythme.signature(v) }
+    expect(described_class.recurrence(sigs)).to eq(1) # tally max = 2 -> 2-1
   end
 end

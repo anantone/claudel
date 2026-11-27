@@ -15,7 +15,8 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = '>= 3.1'
   spec.metadata['rubygems_mfa_required'] = 'true'
 
-  spec.files         = Dir['lib/**/*.rb'] + Dir['docs/**/*.txt'] + %w[LICENSE README.md CHANGELOG.md]
+  spec.files         = Dir['lib/**/*.rb'] + Dir['docs/**/*.{txt,md}'] + Dir['data/**/*.{json,md}'] +
+                       %w[script/split_corpus.rb LICENSE README.md CHANGELOG.md]
   spec.bindir        = 'bin'
   spec.executables   = ['claudel']
   spec.require_paths = ['lib']

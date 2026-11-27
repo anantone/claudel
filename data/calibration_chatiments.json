@@ -1,0 +1,42 @@
+{
+  "stats": {
+    "repetition_generale": {
+      "mean": 0.2507225014144657,
+      "sd": 0.02034983142125785
+    },
+    "repetition_positionnelle": {
+      "mean": 0.04670950846068493,
+      "sd": 0.029894476479999155
+    },
+    "patterns_rythmiques": {
+      "mean": 0.0691197131653398,
+      "sd": 0.021382264782412466
+    }
+  },
+  "n": 106,
+  "settings": {
+    "unit_weights": {
+      "phone": 0.0,
+      "voyelle": 0.8,
+      "consonne": 0.5,
+      "syllabe": 1.5,
+      "inversee": "length"
+    },
+    "proximity_a": 2.0,
+    "proximity_lambda": 40.0,
+    "word_penalty": 0.1,
+    "root_min_length": 4,
+    "drop_function_word_syllables": true,
+    "function_word_phones_intra_verse_only": true,
+    "position_weights": {
+      "fin_de_vers": 1.0,
+      "cesure": 0.7,
+      "groupe": 0.5
+    },
+    "min_phones": 2,
+    "rhyme_plateau": 3,
+    "rhyme_lambda": 4.0,
+    "verse_bonus": 1.0,
+    "recurrence_bonus": 1.0
+  }
+}

@@ -13,7 +13,6 @@ Metrics/BlockLength:
 Metrics/ModuleLength:
   Exclude:
     - 'lib/claudel/cli.rb'
-
-# structures et helpers style scansion (Aligner, etc.)
-Metrics/ParameterLists:
-  Max: 8
+Metrics/ClassLength:
+  Exclude:
+    - 'lib/claudel/cli.rb'

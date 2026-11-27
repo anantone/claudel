@@ -35,7 +35,7 @@ module Claudel
       Repetition = Struct.new(:type, :form, :value, :occurrences, :pairs, :total, keyword_init: true)
 
       class << self
-        def name = NAME
+        def key = NAME
 
         def default_weight = 1.0
 
@@ -53,11 +53,11 @@ module Claudel
         # @param config [Hash]
         # @return [Array<Repetition>]
         def explain(poem, config = {})
-          cfg = DEFAULTS.merge(config)
+          cfg = Criteria.merge_config(DEFAULTS, config)
           reps = Units.occurrences(poem).filter_map do |(type, form), units|
             build_repetition(type, form, units.sort_by(&:start), cfg)
           end
-          reps.sort_by { |rep| -rep.total }
+          reps.sort_by { |rep| [-rep.total, rep.type.to_s, rep.form] } # ex aequo : ordre stable
         end
 
         # @param sorted [Array<Unit>] occurrences triées par position
@@ -113,16 +113,19 @@ module Claudel
         # @param distance [Integer] distance absolue en phones
         # @return [Float]
         def proximite(distance, cfg)
-          a = cfg[:proximity_a]
-          (distance / (distance + a)) * Math.exp(-distance / cfg[:proximity_lambda])
+          # to_f : un réglage entier (ex. proximity_lambda: 60) ne doit pas
+          # basculer en division entière
+          d = distance.to_f
+          a = cfg[:proximity_a].to_f
+          (d / (d + a)) * Math.exp(-d / cfg[:proximity_lambda].to_f)
         end
 
         # Valeur d'un type d'unité ; :length -> longueur en phones (inversée).
         # Un phone est valorisé selon sa classe : :voyelle (assonance) ou
         # :consonne (allitération), avec :phone comme repli.
         def unit_value(type, form, weights)
-          key = type == :phone ? phone_class(form) : type
-          weight = weights.key?(key) ? weights[key] : weights[:phone]
+          unit_key = type == :phone ? phone_class(form) : type
+          weight = weights.key?(unit_key) ? weights[unit_key] : weights[:phone]
           weight == :length ? Phonemes.of_syllable(form).size.to_f : weight.to_f
         end
 

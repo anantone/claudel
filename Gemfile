@@ -10,4 +10,5 @@ gem 'scansion', path: '../scansion'
 group :development do
   gem 'rake', '~> 13.0'
   gem 'rspec', '~> 3.13'
+  gem 'rubocop', '~> 1.92', require: false
 end

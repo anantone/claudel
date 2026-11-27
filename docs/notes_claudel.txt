@@ -43,7 +43,7 @@ Source : Analysis#syllables ; extraction : Claudel::Units.
   - types d'unités : phone, syllabe, séquence inversée — poids par type
     configurables. DÉCISION : les phones sont classés voyelle (assonance) /
     consonne (allitération, glides inclus) — point de départ : voyelle 0.8,
-    consonne 0.0, :phone = repli ; syllabe 1.5 ; inversée = longueur en
+    consonne 0.5, :phone = repli ; syllabe 1.5 ; inversée = longueur en
     phones (2, 3, 4+) ;
   - DÉCISION décompte : k occurrences d'une unité = k−1 répétitions
     (« ʁʁʁ » = 2 répétitions) ;
@@ -56,7 +56,12 @@ Source : Analysis#syllables ; extraction : Claudel::Units.
     que 3 fois dans un poème de 50 vers) ;
   - DÉCISION perte de points : une répétition provenant du même mot ou d'un
     mot dérivé ne compte presque pas (point de départ : ×0.1) — détection via
-    les tokens scansion (surface du mot, racine commune) ;
+    les tokens scansion (surface du mot, racine commune). LIMITATION CONNUE :
+    l'heuristique par préfixe commun attrape des mots sans lien qui
+    partagent >= 4 lettres (« comment »/« commencer » ; « par »/« partir »,
+    3 lettres, passe sous le seuil) et rate les
+    homophones (« mer »/« mère » comptent plein pot, ils se répètent à l'oral
+    sans partager de préfixe) ; à affiner (liste d'exceptions ou lemmatisation) ;
   - DÉCISION mots fonctionnels (listes scansion MOTS_FONCTIONNELS + fragments
     clitiques) : leurs SYLLABES (et inversées) sont ignorées ; leurs PHONES
     ne comptent que si la paire est INTRA-vers (répétition au niveau du vers),
@@ -87,7 +92,7 @@ Source : Analysis#syllables ; extraction : Claudel::Units.
 
 5. ARCHITECTURE EXTENSIBLE ET NORMALISATION
 ------------------------------------------
-  - Chaque critère = un objet : .name, .weight (configurable), #raw_score(poem)
+  - Chaque critère = un objet : .key, .weight (configurable), #raw_score(poem)
     -> score brut, normalisé ensuite (ex. en [0,1]) ;
   - Registre Claudel::Criteria + configuration (hash/YAML) : ajouter un
     critère ou changer les poids SANS toucher au code ;
@@ -96,13 +101,63 @@ Source : Analysis#syllables ; extraction : Claudel::Units.
   - DÉCISION normalisation : densité PAR POÈME, divisée par la longueur
     totale du poème EN PHONÈMES (pour prendre en compte les lignes très
     variables du contemporain).
+  - DÉCISION calibration (optionnelle) : les densités des critères n'ont pas
+    la même échelle (échantillons, 104 poèmes : générale ≈ 0.22 ± 0.037,
+    positionnelle ≈ 0.031 ± 0.024, rythme ≈ 0.065 ± 0.023) — à poids égaux, la
+    générale explique 55 % de la variance du score. Calibration sur corpus :
+    z = (densité − moyenne) / écart-type par critère, puis Σ poids·z / Σ poids
+    -> chaque critère explique 1/3 de la variance, score en écarts-types.
+    Claudel::Calibration, CLI --calibrate / --calibration.
+    Calibrations d'exemple livrées (data/, provenance : data/README.md,
+    régénération : rake calibrations) : contemporain (104 échantillons,
+    = Calibration.reference), Châtiments (106 poèmes, coupe aux suites de
+    >= 3 lignes vides), Racine (12 pièces, blocs de 20 vers : une pièce
+    entière comme unité écraserait l'écart-type). Les z sont relatifs au
+    corpus choisi : face au contemporain, un texte rimé classique ressort
+    positif, et c'est voulu (Châtiments entiers : +0.69 ; positionnelle
+    z +1.16, générale z +1.02, rythme z −0.13).
+    LIMITE : ni le mode ni la version de scansion ne sont enregistrés dans
+    la calibration ; recalibrer après un changement de scansion.
+    À faire : calibration oupoco (sonnets_oupoco.txt).
+  - DÉCISION proximité en vers (critère 2) : sans elle, la densité
+    positionnelle croissait avec le nombre de vers (corrélation +0.45 sur les
+    échantillons ; 411 paires sur 1009 à 8 vers d'écart ou plus) — un poème
+    long a plus d'occasions de répéter une forme au hasard. La calibration
+    ne corrigeait pas ce biais interne au critère. Règles retenues :
+      * règle classique « des deux couleurs » (Cornulier, Art poëtique,
+        1995, p. 267, cité par G. Purnelle, « Cocteau expérimentateur de la
+        rime ») : « une terminaison de vers n'est jamais séparée de son plus
+        proche écho par plus d'un type de terminaison » -> deux vers rimant
+        sont au plus à 3 vers d'écart (abba). Jusqu'à 3 vers (rhyme_plateau),
+        poids plein : plates, croisées, embrassées, sonnet abba abba ccd
+        eed/ede, ballade ababbcbc, terza rima — testé schéma par schéma ;
+      * au-delà, « rime distante » (Purnelle) : « volume et distance doivent
+        se cumuler positivement, ou au moins se compenser » — plus la rime
+        est épaisse, plus elle est acceptable loin -> e^(−(Δv − 3) / (λ ·
+        phones / min_phones)), λ = rhyme_lambda = 4 vers.
+    Choix de λ sur les échantillons : corrélation (densité positionnelle,
+    nb de vers) +0.45 -> +0.21 (λ=12), +0.13 (λ=6), +0.09 (λ=4), +0.06
+    (λ=3) ; λ=4 aligne le critère sur la générale (+0.09). Poèmes ≤ 14 vers :
+    83 % du score positionnel conservé ; ≥ 30 vers : 49 %. Score global
+    calibré : corrélation avec le nb de vers +0.29 -> +0.09.
+    LIMITE : Purnelle tolère jusqu'à 34 vers pour des rimes remarquables ;
+    à λ=4, une rime de 4 phones à 34 vers ne garde que ~2 % (~7 % à λ=6).
+    Refrains (ex. ballade, retour tous les 8 vers) : ~54 % par retour pour
+    une rime de 4 phones. ASSUMÉ : un refrain vaut un peu moins qu'un jeu de
+    rimes nouveau (les mots répétés restent comptés par le critère 1).
+    λ = 4 retenu (validé 2026-11-27).
+    Pas de biais inverse (poèmes courts favorisés) : la décroissance ne fait
+    que réduire le bonus des échos lointains, qu'un poème court n'a pas.
+    Vérifié sur les préfixes (8 -> 32 vers) des 15 échantillons de ≥ 32 vers :
+    densité positionnelle 0.0224 -> 0.0248 (+10 %), contre 0.0245 -> 0.0421
+    (+72 %) sans décroissance.
 
 6. DÉCISIONS PRISES — récapitulatif
 -----------------------------------
   - séquences inversées : >= 2 phones (syllabe de 2 phones incluse),
     valeur croissante 2 < 3 < 4+ phones ;
   - critère 1 : distinction assonance (voyelle, 0.8) / allitération (consonne,
-    0.0) au niveau phone — la littérature (Menninghaus et al.) indique que la
+    0.5) au niveau phone — la littérature (Menninghaus et al.) indique que la
     rime est perçue le plus tôt, l'allitération plus tardivement et plus
     coûteusement ; k−1 répétitions, distance absolue en phones (hors vers),
     proximité(d) = (d/(d+2))·e^(−d/40) au départ, pénalité si trop proche,
@@ -132,3 +187,6 @@ Source : Analysis#syllables ; extraction : Claudel::Units.
                          --repetitions détaille chaque répétition (positions,
                          distance, proximité, pénalité de mot, contribution).
                          Chaque critère de répétition expose aussi .explain(poem).
+  - Claudel::Calibration : moyenne/écart-type des densités sur un corpus,
+                         score en écarts-types (lib/claudel/calibration.rb) ;
+                         CLI --calibrate cal.json / --calibration cal.json|reference.
